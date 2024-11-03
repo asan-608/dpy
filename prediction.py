@@ -17,24 +17,51 @@ class PricePredictor:
         self.model = None
         
     def preprocess_price(self, price_str):
-        """å°†ä»·æ ¼å­—ç¬¦ä¸²è½¬æ¢ä¸ºæµ®ç‚¹æ•°"""
-        return float(price_str.replace('Â¥', '').strip())
+        """½«¼Û¸ñ×Ö·û´®×ª»»Îª¸¡µãÊı"""
+        try:
+            # ´¦Àí¸÷ÖÖ¿ÉÄÜµÄ¼Û¸ñ¸ñÊ½
+            if not price_str or price_str.strip() == '':
+                return None
+            # ÒÆ³ıËùÓĞ·ÇÊı×Ö×Ö·û£¨±£ÁôĞ¡Êıµã£©
+            price_cleaned = re.sub(r'[^\d.]', '', price_str)
+            if price_cleaned:
+                return float(price_cleaned)
+            return None
+        except (ValueError, TypeError):
+            return None
     
     def preprocess_data(self, data):
-        """é¢„å¤„ç†å•†å“æ•°æ®"""
-        # æå–æ ‡é¢˜å’Œä»·æ ¼
-        titles = [item['name'].strip() for item in data]
-        prices = [self.preprocess_price(item['price']) for item in data]
+        """Ô¤´¦ÀíÉÌÆ·Êı¾İ"""
+        # ÌáÈ¡±êÌâºÍ¼Û¸ñ£¬Í¬Ê±¹ıÂËµôÎŞĞ§Êı¾İ
+        valid_data = []
+        for item in data:
+            price = self.preprocess_price(item.get('price', ''))
+            if price is not None and item.get('name', '').strip():
+                valid_data.append({
+                    'name': item['name'].strip(),
+                    'price': price
+                })
         
-        # å‘é‡åŒ–æ–‡æœ¬
+        if not valid_data:
+            raise ValueError("Ã»ÓĞÓĞĞ§µÄÊı¾İ¿É¹©ÑµÁ·")
+        
+        # ×ª»»ÎªÁĞ±í
+        titles = [item['name'] for item in valid_data]
+        prices = [item['price'] for item in valid_data]
+        
+        print(f"×ÜÊı¾İÁ¿: {len(data)}")
+        print(f"ÓĞĞ§Êı¾İÁ¿: {len(valid_data)}")
+        print(f"¼Û¸ñ·¶Î§: ?{min(prices):.2f} - ?{max(prices):.2f}")
+        
+        # ÏòÁ¿»¯ÎÄ±¾
         X = self.vectorizer.fit_transform(titles)
-        # æ ‡å‡†åŒ–ä»·æ ¼
+        # ±ê×¼»¯¼Û¸ñ
         y = self.price_scaler.fit_transform(np.array(prices).reshape(-1, 1))
         
         return X.toarray(), y
     
     def build_model(self, input_dim):
-        """æ„å»ºç¥ç»ç½‘ç»œæ¨¡å‹"""
+        """¹¹½¨Éñ¾­ÍøÂçÄ£ĞÍ"""
         model = Sequential([
             Dense(512, activation='relu', input_dim=input_dim),
             Dropout(0.2),
@@ -48,99 +75,127 @@ class PricePredictor:
         return model
     
     def train(self, json_file_path, epochs=50, batch_size=32):
-        """è®­ç»ƒæ¨¡å‹"""
-        # åŠ è½½æ•°æ®
-        with open(json_file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        """ÑµÁ·Ä£ĞÍ"""
+        try:
+            # ¼ÓÔØÊı¾İ
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
             
-        # é¢„å¤„ç†æ•°æ®
-        X, y = self.preprocess_data(data)
-        
-        # åˆ†å‰²è®­ç»ƒé›†å’Œæµ‹è¯•é›†
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-        
-        # æ„å»ºå¹¶è®­ç»ƒæ¨¡å‹
-        self.model = self.build_model(X_train.shape[1])
-        history = self.model.fit(
-            X_train, y_train,
-            validation_data=(X_test, y_test),
-            epochs=epochs,
-            batch_size=batch_size,
-            verbose=1
-        )
-        
-        # è¯„ä¼°æ¨¡å‹
-        test_loss, test_mae = self.model.evaluate(X_test, y_test, verbose=0)
-        print(f"\næµ‹è¯•é›†å¹³å‡ç»å¯¹è¯¯å·®: Â¥{test_mae:.2f}")
-        
-        return history
+            print(f"¿ªÊ¼´¦ÀíÊı¾İ...")
+            X, y = self.preprocess_data(data)
+            
+            # ·Ö¸îÑµÁ·¼¯ºÍ²âÊÔ¼¯
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+            
+            print(f"¿ªÊ¼ÑµÁ·Ä£ĞÍ...")
+            # ¹¹½¨²¢ÑµÁ·Ä£ĞÍ
+            self.model = self.build_model(X_train.shape[1])
+            history = self.model.fit(
+                X_train, y_train,
+                validation_data=(X_test, y_test),
+                epochs=epochs,
+                batch_size=batch_size,
+                verbose=1
+            )
+            
+            # ÆÀ¹ÀÄ£ĞÍ
+            test_loss, test_mae = self.model.evaluate(X_test, y_test, verbose=0)
+            print(f"\n²âÊÔ¼¯Æ½¾ù¾ø¶ÔÎó²î: ?{self.price_scaler.inverse_transform([[test_mae]])[0][0]:.2f}")
+            
+            return history
+            
+        except Exception as e:
+            print(f"ÑµÁ·¹ı³ÌÖĞ³öÏÖ´íÎó: {str(e)}")
+            raise
     
     def predict_price(self, title):
-        """é¢„æµ‹å•†å“ä»·æ ¼"""
+        """Ô¤²âÉÌÆ·¼Û¸ñ"""
         if not self.model:
-            raise ValueError("æ¨¡å‹å°šæœªè®­ç»ƒï¼Œè¯·å…ˆè°ƒç”¨trainæ–¹æ³•")
+            raise ValueError("Ä£ĞÍÉĞÎ´ÑµÁ·£¬ÇëÏÈµ÷ÓÃtrain·½·¨")
             
-        # å‘é‡åŒ–è¾“å…¥æ ‡é¢˜
-        title_vector = self.vectorizer.transform([title]).toarray()
-        
-        # é¢„æµ‹ä»·æ ¼
-        predicted_scaled = self.model.predict(title_vector)
-        predicted_price = self.price_scaler.inverse_transform(predicted_scaled)[0][0]
-        
-        return predicted_price
+        try:
+            # ÏòÁ¿»¯ÊäÈë±êÌâ
+            title_vector = self.vectorizer.transform([title]).toarray()
+            
+            # Ô¤²â¼Û¸ñ
+            predicted_scaled = self.model.predict(title_vector)
+            predicted_price = self.price_scaler.inverse_transform(predicted_scaled)[0][0]
+            
+            return predicted_price
+            
+        except Exception as e:
+            print(f"Ô¤²â¹ı³ÌÖĞ³öÏÖ´íÎó: {str(e)}")
+            raise
     
     def save_model(self, folder_path='model'):
-        """ä¿å­˜æ¨¡å‹å’Œç›¸å…³ç»„ä»¶"""
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
+        """±£´æÄ£ĞÍºÍÏà¹Ø×é¼ş"""
+        try:
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+                
+            # ±£´æÉñ¾­ÍøÂçÄ£ĞÍ
+            self.model.save(os.path.join(folder_path, 'price_model.h5'))
             
-        # ä¿å­˜ç¥ç»ç½‘ç»œæ¨¡å‹
-        self.model.save(os.path.join(folder_path, 'price_model.h5'))
-        
-        # ä¿å­˜å‘é‡å™¨å’Œå®šæ ‡å™¨
-        with open(os.path.join(folder_path, 'vectorizer.pkl'), 'wb') as f:
-            pickle.dump(self.vectorizer, f)
-        with open(os.path.join(folder_path, 'scaler.pkl'), 'wb') as f:
-            pickle.dump(self.price_scaler, f)
+            # ±£´æÏòÁ¿Æ÷ºÍ¶¨±êÆ÷
+            with open(os.path.join(folder_path, 'vectorizer.pkl'), 'wb') as f:
+                pickle.dump(self.vectorizer, f)
+            with open(os.path.join(folder_path, 'scaler.pkl'), 'wb') as f:
+                pickle.dump(self.price_scaler, f)
+                
+            print(f"Ä£ĞÍÒÑ³É¹¦±£´æµ½ {folder_path} Ä¿Â¼")
+            
+        except Exception as e:
+            print(f"±£´æÄ£ĞÍÊ±³öÏÖ´íÎó: {str(e)}")
+            raise
     
     def load_model(self, folder_path='model'):
-        """åŠ è½½ä¿å­˜çš„æ¨¡å‹å’Œç»„ä»¶"""
-        # åŠ è½½ç¥ç»ç½‘ç»œæ¨¡å‹
-        self.model = load_model(os.path.join(folder_path, 'price_model.h5'))
-        
-        # åŠ è½½å‘é‡å™¨å’Œå®šæ ‡å™¨
-        with open(os.path.join(folder_path, 'vectorizer.pkl'), 'rb') as f:
-            self.vectorizer = pickle.load(f)
-        with open(os.path.join(folder_path, 'scaler.pkl'), 'rb') as f:
-            self.price_scaler = pickle.load(f)
+        """¼ÓÔØ±£´æµÄÄ£ĞÍºÍ×é¼ş"""
+        try:
+            # ¼ÓÔØÉñ¾­ÍøÂçÄ£ĞÍ
+            self.model = load_model(os.path.join(folder_path, 'price_model.h5'))
+            
+            # ¼ÓÔØÏòÁ¿Æ÷ºÍ¶¨±êÆ÷
+            with open(os.path.join(folder_path, 'vectorizer.pkl'), 'rb') as f:
+                self.vectorizer = pickle.load(f)
+            with open(os.path.join(folder_path, 'scaler.pkl'), 'rb') as f:
+                self.price_scaler = pickle.load(f)
+                
+            print("Ä£ĞÍ¼ÓÔØ³É¹¦")
+            
+        except Exception as e:
+            print(f"¼ÓÔØÄ£ĞÍÊ±³öÏÖ´íÎó: {str(e)}")
+            raise
 
-# ä½¿ç”¨ç¤ºä¾‹
 def main():
-    # åˆå§‹åŒ–é¢„æµ‹å™¨
+    # ³õÊ¼»¯Ô¤²âÆ÷
     predictor = PricePredictor()
     
-    # è®­ç»ƒæ¨¡å‹
-    print("å¼€å§‹è®­ç»ƒæ¨¡å‹...")
-    predictor.train('fixed_data.json', epochs=50)
-    
-    # ä¿å­˜æ¨¡å‹
-    print("\nä¿å­˜æ¨¡å‹...")
-    predictor.save_model()
-    
-    # é¢„æµ‹ç¤ºä¾‹
-    test_titles = [
-        "æ–°ä¹¦ é’æ˜¥æ–‡å­¦å°è¯´",
-        "é™é‡ç‰ˆç²¾è£…çè—ç‰ˆå¥—è£…",
-        "ç•…é”€å°è¯´å®ä½“ä¹¦"
-    ]
-    
-    print("\né¢„æµ‹ç¤ºä¾‹:")
-    for title in test_titles:
-        predicted_price = predictor.predict_price(title)
-        print(f"å•†å“æ ‡é¢˜: {title}")
-        print(f"é¢„æµ‹ä»·æ ¼: Â¥{predicted_price:.2f}\n")
+    try:
+        # ÑµÁ·Ä£ĞÍ
+        print("¿ªÊ¼ÑµÁ·Ä£ĞÍ...")
+        predictor.train('fixed_data.json', epochs=50)
+        
+        # ±£´æÄ£ĞÍ
+        print("\n±£´æÄ£ĞÍ...")
+        predictor.save_model()
+        
+        # Ô¤²âÊ¾Àı
+        test_titles = [
+            "ĞÂÊé Çà´ºÎÄÑ§Ğ¡Ëµ",
+            "ÏŞÁ¿°æ¾«×°Õä²Ø°æÌ××°",
+            "³©ÏúĞ¡ËµÊµÌåÊé"
+        ]
+        
+        print("\nÔ¤²âÊ¾Àı:")
+        for title in test_titles:
+            predicted_price = predictor.predict_price(title)
+            print(f"ÉÌÆ·±êÌâ: {title}")
+            print(f"Ô¤²â¼Û¸ñ: ?{predicted_price:.2f}\n")
+            
+    except Exception as e:
+        print(f"³ÌĞòÖ´ĞĞ³ö´í: {str(e)}")
 
 if __name__ == "__main__":
     main()
