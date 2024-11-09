@@ -1,201 +1,212 @@
 import json
 import numpy as np
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, Dropout
+from sklearn.preprocessing import StandardScaler
+import lightgbm as lgb
+from gensim.models import Word2Vec
+import jieba
 import re
 import pickle
-import os
+import warnings
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+warnings.filterwarnings('ignore')
 
-class PricePredictor:
-    def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=1000)
-        self.price_scaler = MinMaxScaler()
-        self.model = None
+# æ·»åŠ å•†å“ç›¸å…³è¯å…¸åˆ°jieba
+product_terms = ['é™å®šç‰ˆ', 'æ­£ç‰ˆ', 'å¥—è£…', 'å…¨æ–°', 'é™é‡', 'çè—', 'å…¸è—', 'è±ªå']
+for term in product_terms:
+    jieba.add_word(term)
+
+class FeatureExtractor:
+    def __init__(self, vector_size=200, window=5, min_count=1):
+        self.vector_size = vector_size
+        self.window = window
+        self.min_count = min_count
+        self.w2v_model = None
+        self.scaler = StandardScaler()
         
-    def preprocess_price(self, price_str):
-        """½«¼Û¸ñ×Ö·û´®×ª»»Îª¸¡µãÊı"""
-        try:
-            # ´¦Àí¸÷ÖÖ¿ÉÄÜµÄ¼Û¸ñ¸ñÊ½
-            if not price_str or price_str.strip() == '':
-                return None
-            # ÒÆ³ıËùÓĞ·ÇÊı×Ö×Ö·û£¨±£ÁôĞ¡Êıµã£©
-            price_cleaned = re.sub(r'[^\d.]', '', price_str)
-            if price_cleaned:
-                return float(price_cleaned)
-            return None
-        except (ValueError, TypeError):
-            return None
+    def clean_title(self, title):
+        # åŸºç¡€æ¸…æ´—
+        title = title.strip()
+        title = re.sub(r'[^\w\s\u4e00-\u9fff]', ' ', title)
+        return title
     
-    def preprocess_data(self, data):
-        """Ô¤´¦ÀíÉÌÆ·Êı¾İ"""
-        # ÌáÈ¡±êÌâºÍ¼Û¸ñ£¬Í¬Ê±¹ıÂËµôÎŞĞ§Êı¾İ
-        valid_data = []
-        for item in data:
-            price = self.preprocess_price(item.get('price', ''))
-            if price is not None and item.get('name', '').strip():
-                valid_data.append({
-                    'name': item['name'].strip(),
-                    'price': price
-                })
+    def extract_numerical_features(self, title):
+        features = {
+            'char_count': len(title),
+            'word_count': len(list(jieba.cut(title))),
+            'contains_number': int(bool(re.search(r'\d', title))),
+            'number_count': len(re.findall(r'\d', title)),
+        }
         
-        if not valid_data:
-            raise ValueError("Ã»ÓĞÓĞĞ§µÄÊı¾İ¿É¹©ÑµÁ·")
+        # ç‰¹æ®Šæ ‡è®°è¯
+        special_terms = {
+            'é™å®š': 'limited',
+            'è±ªå': 'deluxe',
+            'çè—': 'collectors',
+            'å¥—è£…': 'set',
+            'æ­£ç‰ˆ': 'genuine',
+            'å…¸è—': 'collection',
+            'é™é‡': 'limited_edition',
+            'å…¨æ–°': 'new'
+        }
         
-        # ×ª»»ÎªÁĞ±í
-        titles = [item['name'] for item in valid_data]
-        prices = [item['price'] for item in valid_data]
-        
-        print(f"×ÜÊı¾İÁ¿: {len(data)}")
-        print(f"ÓĞĞ§Êı¾İÁ¿: {len(valid_data)}")
-        print(f"¼Û¸ñ·¶Î§: ?{min(prices):.2f} - ?{max(prices):.2f}")
-        
-        # ÏòÁ¿»¯ÎÄ±¾
-        X = self.vectorizer.fit_transform(titles)
-        # ±ê×¼»¯¼Û¸ñ
-        y = self.price_scaler.fit_transform(np.array(prices).reshape(-1, 1))
-        
-        return X.toarray(), y
+        for term, feature_name in special_terms.items():
+            features[f'has_{feature_name}'] = int(term in title)
+            
+        return features
     
-    def build_model(self, input_dim):
-        """¹¹½¨Éñ¾­ÍøÂçÄ£ĞÍ"""
-        model = Sequential([
-            Dense(512, activation='relu', input_dim=input_dim),
-            Dropout(0.2),
-            Dense(256, activation='relu'),
-            Dropout(0.2),
-            Dense(128, activation='relu'),
-            Dense(1)
-        ])
+    def train(self, texts):
+        # åˆ†è¯
+        tokenized_texts = [list(jieba.cut(text)) for text in texts]
         
-        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-        return model
+        # è®­ç»ƒWord2Vecæ¨¡å‹
+        self.w2v_model = Word2Vec(
+            tokenized_texts,
+            vector_size=self.vector_size,
+            window=self.window,
+            min_count=self.min_count,
+            workers=4
+        )
+        
+        # æå–æ•°å€¼ç‰¹å¾
+        numerical_features = [self.extract_numerical_features(text) for text in texts]
+        numerical_df = pd.DataFrame(numerical_features)
+        
+        # æ ‡å‡†åŒ–æ•°å€¼ç‰¹å¾
+        self.scaler.fit(numerical_df)
+        
+        return self
     
-    def train(self, json_file_path, epochs=50, batch_size=32):
-        """ÑµÁ·Ä£ĞÍ"""
-        try:
-            # ¼ÓÔØÊı¾İ
-            with open(json_file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            print(f"¿ªÊ¼´¦ÀíÊı¾İ...")
-            X, y = self.preprocess_data(data)
-            
-            # ·Ö¸îÑµÁ·¼¯ºÍ²âÊÔ¼¯
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, random_state=42
-            )
-            
-            print(f"¿ªÊ¼ÑµÁ·Ä£ĞÍ...")
-            # ¹¹½¨²¢ÑµÁ·Ä£ĞÍ
-            self.model = self.build_model(X_train.shape[1])
-            history = self.model.fit(
-                X_train, y_train,
-                validation_data=(X_test, y_test),
-                epochs=epochs,
-                batch_size=batch_size,
-                verbose=1
-            )
-            
-            # ÆÀ¹ÀÄ£ĞÍ
-            test_loss, test_mae = self.model.evaluate(X_test, y_test, verbose=0)
-            print(f"\n²âÊÔ¼¯Æ½¾ù¾ø¶ÔÎó²î: ?{self.price_scaler.inverse_transform([[test_mae]])[0][0]:.2f}")
-            
-            return history
-            
-        except Exception as e:
-            print(f"ÑµÁ·¹ı³ÌÖĞ³öÏÖ´íÎó: {str(e)}")
-            raise
+    def extract_features(self, texts):
+        # Word2Vecç‰¹å¾
+        w2v_features = []
+        for text in texts:
+            words = list(jieba.cut(text))
+            word_vectors = [self.w2v_model.wv[word] for word in words if word in self.w2v_model.wv]
+            if word_vectors:
+                text_vector = np.mean(word_vectors, axis=0)
+            else:
+                text_vector = np.zeros(self.vector_size)
+            w2v_features.append(text_vector)
+        
+        # æ•°å€¼ç‰¹å¾
+        numerical_features = [self.extract_numerical_features(text) for text in texts]
+        numerical_df = pd.DataFrame(numerical_features)
+        scaled_numerical = self.scaler.transform(numerical_df)
+        
+        # ç»„åˆæ‰€æœ‰ç‰¹å¾
+        combined_features = np.hstack([np.array(w2v_features), scaled_numerical])
+        
+        return combined_features
+
+def evaluate_model(y_true, y_pred):
+    mae = mean_absolute_error(y_true, y_pred)
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_true, y_pred)
     
-    def predict_price(self, title):
-        """Ô¤²âÉÌÆ·¼Û¸ñ"""
-        if not self.model:
-            raise ValueError("Ä£ĞÍÉĞÎ´ÑµÁ·£¬ÇëÏÈµ÷ÓÃtrain·½·¨")
-            
-        try:
-            # ÏòÁ¿»¯ÊäÈë±êÌâ
-            title_vector = self.vectorizer.transform([title]).toarray()
-            
-            # Ô¤²â¼Û¸ñ
-            predicted_scaled = self.model.predict(title_vector)
-            predicted_price = self.price_scaler.inverse_transform(predicted_scaled)[0][0]
-            
-            return predicted_price
-            
-        except Exception as e:
-            print(f"Ô¤²â¹ı³ÌÖĞ³öÏÖ´íÎó: {str(e)}")
-            raise
+    print(f"\nModel Evaluation Metrics:")
+    print(f"Mean Absolute Error: {mae:.2f}")
+    print(f"Root Mean Squared Error: {rmse:.2f}")
+    print(f"RÂ² Score: {r2:.4f}")
     
-    def save_model(self, folder_path='model'):
-        """±£´æÄ£ĞÍºÍÏà¹Ø×é¼ş"""
-        try:
-            if not os.path.exists(folder_path):
-                os.makedirs(folder_path)
-                
-            # ±£´æÉñ¾­ÍøÂçÄ£ĞÍ
-            self.model.save(os.path.join(folder_path, 'price_model.h5'))
-            
-            # ±£´æÏòÁ¿Æ÷ºÍ¶¨±êÆ÷
-            with open(os.path.join(folder_path, 'vectorizer.pkl'), 'wb') as f:
-                pickle.dump(self.vectorizer, f)
-            with open(os.path.join(folder_path, 'scaler.pkl'), 'wb') as f:
-                pickle.dump(self.price_scaler, f)
-                
-            print(f"Ä£ĞÍÒÑ³É¹¦±£´æµ½ {folder_path} Ä¿Â¼")
-            
-        except Exception as e:
-            print(f"±£´æÄ£ĞÍÊ±³öÏÖ´íÎó: {str(e)}")
-            raise
+    # è®¡ç®—ç›¸å¯¹è¯¯å·®
+    relative_errors = np.abs(y_true - y_pred) / y_true
+    mean_relative_error = np.mean(relative_errors)
+    median_relative_error = np.median(relative_errors)
     
-    def load_model(self, folder_path='model'):
-        """¼ÓÔØ±£´æµÄÄ£ĞÍºÍ×é¼ş"""
-        try:
-            # ¼ÓÔØÉñ¾­ÍøÂçÄ£ĞÍ
-            self.model = load_model(os.path.join(folder_path, 'price_model.h5'))
-            
-            # ¼ÓÔØÏòÁ¿Æ÷ºÍ¶¨±êÆ÷
-            with open(os.path.join(folder_path, 'vectorizer.pkl'), 'rb') as f:
-                self.vectorizer = pickle.load(f)
-            with open(os.path.join(folder_path, 'scaler.pkl'), 'rb') as f:
-                self.price_scaler = pickle.load(f)
-                
-            print("Ä£ĞÍ¼ÓÔØ³É¹¦")
-            
-        except Exception as e:
-            print(f"¼ÓÔØÄ£ĞÍÊ±³öÏÖ´íÎó: {str(e)}")
-            raise
+    print(f"Mean Relative Error: {mean_relative_error:.2%}")
+    print(f"Median Relative Error: {median_relative_error:.2%}")
+
+def train_model(X, y):
+    # åˆ’åˆ†è®­ç»ƒé›†å’ŒéªŒè¯é›†
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # LightGBMå‚æ•°
+    params = {
+        'objective': 'regression',
+        'metric': 'rmse',
+        'boosting_type': 'gbdt',
+        'num_leaves': 63,
+        'learning_rate': 0.01,
+        'feature_fraction': 0.8,
+        'bagging_fraction': 0.8,
+        'bagging_freq': 5,
+        'verbose': -1,
+        'max_depth': 12,
+        'min_data_in_leaf': 20,
+        'reg_alpha': 0.1,
+        'reg_lambda': 0.1
+    }
+    
+    # åˆ›å»ºæ•°æ®é›†
+    train_data = lgb.Dataset(X_train, y_train)
+    valid_data = lgb.Dataset(X_val, y_val, reference=train_data)
+    
+    # å›è°ƒå‡½æ•°
+    callbacks = [
+        lgb.early_stopping(stopping_rounds=100),
+        lgb.log_evaluation(period=100)
+    ]
+    
+    # è®­ç»ƒæ¨¡å‹
+    model = lgb.train(
+        params,
+        train_data,
+        num_boost_round=2000,
+        valid_sets=[valid_data],
+        callbacks=callbacks
+    )
+    
+    # è¯„ä¼°æ¨¡å‹
+    val_pred = model.predict(X_val)
+    evaluate_model(y_val, val_pred)
+    
+    return model
 
 def main():
-    # ³õÊ¼»¯Ô¤²âÆ÷
-    predictor = PricePredictor()
-    
     try:
-        # ÑµÁ·Ä£ĞÍ
-        print("¿ªÊ¼ÑµÁ·Ä£ĞÍ...")
-        predictor.train('fixed_data.json', epochs=50)
+        # åŠ è½½æ•°æ®
+        print("Loading data...")
+        with open('fixed_data.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        df = pd.DataFrame(data)
         
-        # ±£´æÄ£ĞÍ
-        print("\n±£´æÄ£ĞÍ...")
-        predictor.save_model()
+        # å¤„ç†ä»·æ ¼
+        df['price'] = df['price'].apply(lambda x: float(x.replace('Â¥', '').strip()))
         
-        # Ô¤²âÊ¾Àı
-        test_titles = [
-            "ĞÂÊé Çà´ºÎÄÑ§Ğ¡Ëµ",
-            "ÏŞÁ¿°æ¾«×°Õä²Ø°æÌ××°",
-            "³©ÏúĞ¡ËµÊµÌåÊé"
-        ]
+        # ç‰¹å¾æå–
+        print("\nExtracting features...")
+        feature_extractor = FeatureExtractor()
+        feature_extractor.train(df['name'].values)
+        X = feature_extractor.extract_features(df['name'].values)
+        y = df['price'].values
         
-        print("\nÔ¤²âÊ¾Àı:")
-        for title in test_titles:
-            predicted_price = predictor.predict_price(title)
-            print(f"ÉÌÆ·±êÌâ: {title}")
-            print(f"Ô¤²â¼Û¸ñ: ?{predicted_price:.2f}\n")
-            
+        # è¾“å‡ºä¸€äº›æ•°æ®ç»Ÿè®¡
+        print("\nData Statistics:")
+        print(f"Total samples: {len(df)}")
+        print(f"Price range: Â¥{min(y):.2f} - Â¥{max(y):.2f}")
+        print(f"Average price: Â¥{np.mean(y):.2f}")
+        print(f"Median price: Â¥{np.median(y):.2f}")
+        
+        # è®­ç»ƒæ¨¡å‹
+        print("\nTraining model...")
+        model = train_model(X, y)
+        
+        # ä¿å­˜æ¨¡å‹å’Œç‰¹å¾æå–å™¨
+        print("\nSaving models...")
+        with open('price_predictor.pkl', 'wb') as f:
+            pickle.dump({
+                'model': model,
+                'feature_extractor': feature_extractor
+            }, f)
+        
+        print("Training completed successfully!")
+        
     except Exception as e:
-        print(f"³ÌĞòÖ´ĞĞ³ö´í: {str(e)}")
+        print(f"è®­ç»ƒè¿‡ç¨‹å‡ºé”™: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main()
