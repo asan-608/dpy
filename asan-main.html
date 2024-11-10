@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当当网图书商品分析面板</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>当当网图书商品分析面板</h1>
+        </div>
+
+        <div class="basic-info" id="basicInfo">
+            <!-- 基本信息 -->
+            <div class="info-card">
+                <h3>总商品数</h3>
+                <div class="value" id="totalProducts">-</div>
+            </div>
+            <div class="info-card">
+                <h3>最高价格</h3>
+                <div class="value" id="maxPrice">-</div>
+            </div>
+            <div class="info-card">
+                <h3>最低价格</h3>
+                <div class="value" id="minPrice">-</div>
+            </div>
+            <div class="info-card">
+                <h3>中位数价格</h3>
+                <div class="value" id="medianPrice">-</div>
+            </div>
+            <div class="info-card">
+                <h3>平均价格</h3>
+                <div class="value" id="avgPrice">-</div>
+            </div>
+        </div>
+
+        <div class="charts-container">
+            <div class="chart-box chart-img" id="chart2"></div>
+            <div class="chart-box"><div id="chart1" style="height:330px ;width: auto;"></div></div> <!-- 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图-->
+            <div class="chart-box"><div id="chart3" style="height:300px ;width: auto;"></div></div>
+        </div>
+
+        <div class="bottom-container">
+            <div class="chat-module">
+                <h2>AI 助手</h2>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="输入你的问题...">
+                    <button onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+            <div class="prediction-module">
+                <h2>价格预测</h2>
+                <div class="prediction-content">
+                    <div class="input-group">
+                        <input type="text" id="titleInput" placeholder="请输入商品标题...">
+                        <button onclick="predictPrice()" id="predictButton">建议价格</button>
+                    </div>
+                    <div id="predictionResult"></div>
+                </div>
+            </div>            
+        </div>
+    </div>
+
+    <script>
+
+// 创建价格分布散点图
+function createPriceScatterChart(data) {
+    const chart3 = echarts.init(document.getElementById('chart3'));
+    
+    // 处理数据
+    const scatterData = data.map((item, index) => {
+        return {
+            value: [index + 1, parsePrice(item.price)],
+            name: item.name,
+            itemStyle: {
+                color: '#4e7eff'  // 设置点的颜色
+            }
+        };
+    });
+
+    const option = {
+        title: {
+            text: '商品价格分布散点图',
+            left: 'center'
+        },
+        tooltip: {
+            trigger: 'item',
+            formatter: function(params) {
+                return `商品：${params.data.name}<br/>价格：¥${params.data.value[1].toFixed(2)}`;
+            }
+        },
+        grid: {
+            left: '5%',
+            right: '5%',
+            bottom: '10%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'value',
+            name: '商品序号',
+            nameLocation: 'middle',
+            nameGap: 30,
+            min: 0,
+            max: data.length + 1,
+            splitLine: {
+                show: true,
+                lineStyle: {
+                    type: 'dashed'
+                }
+            }
+        },
+        yAxis: {
+            type: 'value',
+            name: '价格 (¥)',
+            min: 0,
+            max: 300,
+            splitLine: {
+                show: true,
+                lineStyle: {
+                    type: 'dashed'
+                }
+            }
+        },
+        series: [{
+            type: 'scatter',
+            data: scatterData,
+            symbolSize: 10,
+            emphasis: {
+                itemStyle: {
+                    color: '#ff7e00',  // 鼠标悬停时的颜色
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                    shadowBlur: 10,
+                    shadowColor: 'rgba(0, 0, 0, 0.3)'
+                }
+            }
+        }]
+    };
+
+    chart3.setOption(option);
+
+    // 添加响应式调整
+    window.addEventListener('resize', () => {
+        chart3.resize();
+    });
+}
+
+
+
+            //柱状图
+        function createPriceRangeChart(data) {
+            // 获取所有价格
+            const prices = data.map(item => parsePrice(item.price));
+
+            // 定义价格区间
+            const ranges = [
+                [0, 20],
+                [20, 40],
+                [40, 60],
+                [60, 80],
+                [80, 100],
+                [100, 150],
+                [150, 200],
+                [200, 300]
+            ];
+
+            // 统计每个区间的商品数量
+            const statistics = ranges.map(range => {
+                const count = prices.filter(price => price >= range[0] && price < range[1]).length;
+                return {
+                    range: `${range[0]}-${range[1]}`,
+                    count: count
+                };
+            });
+
+            // 初始化图表
+            const chart1 = echarts.init(document.getElementById('chart1'));
+
+            // 图表配置项
+            const option = {
+                title: {
+                    text: '商品价格区间分布',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    },
+                    formatter: '{b}: {c}件商品'
+                },
+                xAxis: {
+                    type: 'category',
+                    data: statistics.map(item => item.range),
+                    axisLabel: {
+                        interval: 0,
+                        rotate: 45
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '商品数量',
+                    minInterval: 1
+                },
+                series: [{
+                    name: '商品数量',
+                    type: 'bar',
+                    data: statistics.map(item => item.count),
+                    itemStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [{
+                                offset: 0,
+                                color: '#83bff6'
+                            }, {
+                                offset: 1,
+                                color: '#188df0'
+                            }]
+                        }
+                    },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: '{c}'
+                    }
+                }],
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                }
+            };
+
+            // 渲染图表
+            chart1.setOption(option);
+
+            // 添加响应式调整
+            window.addEventListener('resize', () => {
+                chart1.resize();
+            });
+        }
+
+
+
+        // 处理价格字符串，转换为数字
+        function parsePrice(priceStr) {
+            return parseFloat(priceStr.replace('¥', ''));
+        }
+
+        // 计算中位数
+        function calculateMedian(prices) {
+            const sorted = [...prices].sort((a, b) => a - b);
+            const middle = Math.floor(sorted.length / 2);
+
+            if (sorted.length % 2 === 0) {
+                return (sorted[middle - 1] + sorted[middle]) / 2;
+            }
+            return sorted[middle];
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        // 更新基本信息显示
+        function updateBasicInfo(data) {
+            try {
+                // 提取所有价格并转换为数字
+                const prices = data.map(item => parsePrice(item.price));
+
+                // 计算各项数据
+                const totalProducts = data.length;
+                const maxPrice = Math.max(...prices);
+                const minPrice = Math.min(...prices);
+                const medianPrice = calculateMedian(prices);
+                const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+
+                // 更新UI
+                document.getElementById('totalProducts').textContent = totalProducts.toLocaleString();
+                document.getElementById('maxPrice').textContent = `¥${maxPrice.toFixed(2)}`;
+                document.getElementById('minPrice').textContent = `¥${minPrice.toFixed(2)}`;
+                document.getElementById('medianPrice').textContent = `¥${medianPrice.toFixed(2)}`;
+                document.getElementById('avgPrice').textContent = `¥${avgPrice.toFixed(2)}`;
+            } catch (error) {
+                showError('数据处理过程中发生错误：' + error.message);
+            }
+        }
+
+        // 加载数据
+        async function loadData() {
+            try {
+                const response = await fetch('fixed_data.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                updateBasicInfo(data);
+                createPriceRangeChart(data); // 添加这一行
+                createPriceScatterChart(data); // 添加这一行
+            } catch (error) {
+                showError('数据加载失败：' + error.message);
+            } finally {
+                // 隐藏加载提示
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // 页面加载完成后初始化数据
+        window.addEventListener('load', loadData);
+
+
+
+        // 聊天功能
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const messages = document.getElementById('chatMessages');
+            if (input.value.trim() === '') return;
+
+            // 添加用户消息
+            const userMessage = document.createElement('div');
+            userMessage.style.marginBottom = '10px';
+            userMessage.innerHTML = `<strong>您:</strong> ${input.value}`;
+            messages.appendChild(userMessage);
+
+            // 模拟AI回复
+            const aiMessage = document.createElement('div');
+            aiMessage.style.marginBottom = '10px';
+            aiMessage.innerHTML = `<strong>AI:</strong> 正在分析您的问题，请稍候...`;
+            messages.appendChild(aiMessage);
+
+            // 清空输入
+            input.value = '';
+
+            // 滚动到底部
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+
+        //价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 
+        async function predictPrice() {
+    const titleInput = document.getElementById('titleInput');
+    const predictButton = document.getElementById('predictButton');
+    const resultDiv = document.getElementById('predictionResult');
+    
+    const title = titleInput.value.trim();
+    if (!title) {
+        alert('请输入商品标题');
+        return;
+    }
+    
+    // 禁用按钮，显示加载状态
+    predictButton.disabled = true;
+    predictButton.textContent = '预测中...';
+    
+    try {
+        // 这里替换为你的实际API端点
+        const response = await fetch('/api/predict', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ title })
+        });
+        
+        const data = await response.json();
+        
+        // 显示预测结果
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+            <div class="prediction-item">
+                <div class="prediction-label">建议价格</div>
+                <div class="prediction-value">¥${data.price.toFixed(2)}</div>
+            </div>
+            <div class="prediction-item">
+                <div class="prediction-label">价格范围</div>
+                <div class="prediction-value">¥${data.range.min.toFixed(2)} - ¥${data.range.max.toFixed(2)}</div>
+            </div>
+        `;
+    } catch (error) {
+        alert('预测失败，请稍后重试');
+    } finally {
+        // 恢复按钮状态
+        predictButton.disabled = false;
+        predictButton.textContent = '建议价格';
+    }
+}
+    </script>
+</body>
+
+</html>
