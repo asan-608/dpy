@@ -59,7 +59,7 @@
                 </div>
             </div>
             <div class="prediction-module">
-                <h2>价格预测</h2>
+                <h2>价格建议</h2>
                 <div class="prediction-content">
                     <div class="input-group">
                         <input type="text" id="titleInput" placeholder="请输入商品标题...">
@@ -326,75 +326,49 @@
         window.addEventListener('load', loadData);
 
 
-
-        // 聊天功能
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const messages = document.getElementById('chatMessages');
-            if (input.value.trim() === '') return;
-
-            // 添加用户消息
-            const userMessage = document.createElement('div');
-            userMessage.style.marginBottom = '10px';
-            userMessage.innerHTML = `<strong>您:</strong> ${input.value}`;
-            messages.appendChild(userMessage);
-
-            // 模拟AI回复
-            const aiMessage = document.createElement('div');
-            aiMessage.style.marginBottom = '10px';
-            aiMessage.innerHTML = `<strong>AI:</strong> 正在分析您的问题，请稍候...`;
-            messages.appendChild(aiMessage);
-
-            // 清空输入
-            input.value = '';
-
-            // 滚动到底部
-            messages.scrollTop = messages.scrollHeight;
-        }
-
-
         //价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 
         // 价格预测模块的JavaScript代码
-        async function predictPrice() {
-            const titleInput = document.getElementById('titleInput');
-            const predictionResult = document.getElementById('predictionResult');
-            const predictButton = document.getElementById('predictButton');
+// 更新后的价格预测函数
+async function predictPrice() {
+    const titleInput = document.getElementById('titleInput');
+    const predictionResult = document.getElementById('predictionResult');
+    const predictButton = document.getElementById('predictButton');
 
-            // 获取输入的标题
-            const title = titleInput.value.trim();
+    // 获取输入的标题
+    const title = titleInput.value.trim();
 
-            // 输入验证
-            if (!title) {
-                predictionResult.innerHTML = '<div class="error-message">请输入商品标题</div>';
-                return;
-            }
+    // 输入验证
+    if (!title) {
+        predictionResult.innerHTML = '<div class="error-message">请输入商品标题</div>';
+        return;
+    }
 
-            try {
-                // 禁用按钮，显示加载状态
-                predictButton.disabled = true;
-                predictButton.textContent = '预测中...';
-                predictionResult.innerHTML = '<div class="loading">正在分析中...</div>';
+    try {
+        // 禁用按钮，显示加载状态
+        predictButton.disabled = true;
+        predictButton.textContent = '预测中...';
+        predictionResult.innerHTML = '<div class="loading">正在分析中...</div>';
 
-                // 调用后端API
-                const response = await fetch('http://localhost:8010/predict', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ title: title })
-                });
+        // 调用后端API
+        const response = await fetch('http://localhost:8010/predict', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ title: title })
+        });
 
-                if (!response.ok) {
-                    throw new Error('预测请求失败');
-                }
+        if (!response.ok) {
+            throw new Error('预测请求失败');
+        }
 
-                const data = await response.json();
+        const data = await response.json();
 
-                // 构建结果HTML
-                let resultHTML = '<div class="prediction-results">';
+        // 构建结果HTML
+        let resultHTML = '<div class="prediction-results">';
 
-                // 主要预测结果
-                resultHTML += `
+        // 主要预测结果
+        resultHTML += `
             <div class="price-prediction">
                 <div class="predicted-price">
                     <span class="label">预测价格：</span>
@@ -407,22 +381,22 @@
             </div>
         `;
 
-                // 特征分析结果
-                if (data.features.special_attributes && Object.keys(data.features.special_attributes).length > 0) {
-                    resultHTML += '<div class="features-analysis">';
-                    resultHTML += '<div class="special-attributes">';
-                    resultHTML += '<span class="label">检测到的特殊属性：</span>';
-                    resultHTML += '<div class="attributes-list">';
-                    for (const [attr, value] of Object.entries(data.features.special_attributes)) {
-                        if (value === 1) {
-                            resultHTML += `<span class="attribute-tag">${attr}</span>`;
-                        }
-                    }
-                    resultHTML += '</div></div>';
+        // 特征分析结果
+        if (data.features.special_attributes && Object.keys(data.features.special_attributes).length > 0) {
+            resultHTML += '<div class="features-analysis">';
+            resultHTML += '<div class="special-attributes">';
+            resultHTML += '<span class="label">检测到的特殊属性：</span>';
+            resultHTML += '<div class="attributes-list">';
+            for (const [attr, value] of Object.entries(data.features.special_attributes)) {
+                if (value === 1) {
+                    resultHTML += `<span class="attribute-tag">${attr}</span>`;
+                }
+            }
+            resultHTML += '</div></div>';
 
-                    // 文本指标
-                    const metrics = data.features.text_metrics;
-                    resultHTML += `
+            // 文本指标
+            const metrics = data.features.text_metrics;
+            resultHTML += `
                 <div class="text-metrics">
                     <div class="metric">
                         <span class="metric-label">字符数：</span>
@@ -434,31 +408,27 @@
                     </div>
                 </div>
             `;
-                    resultHTML += '</div>';
-                }
+            resultHTML += '</div>';
+        }
 
-                resultHTML += '</div>';
-                predictionResult.innerHTML = resultHTML;
+        resultHTML += '</div>';
+        predictionResult.innerHTML = resultHTML;
 
-            } catch (error) {
-                predictionResult.innerHTML = `
+        // 价格预测完成后，自动触发AI助手的建议
+        await sendAIMessageForTitle(title);
+
+    } catch (error) {
+        predictionResult.innerHTML = `
             <div class="error-message">
                 预测失败：${error.message}
             </div>
         `;
-            } finally {
-                // 恢复按钮状态
-                predictButton.disabled = false;
-                predictButton.textContent = '建议价格';
-            }
-        }
-
-        // 添加回车键触发预测
-        document.getElementById('titleInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                predictPrice();
-            }
-        });
+    } finally {
+        // 恢复按钮状态
+        predictButton.disabled = false;
+        predictButton.textContent = '建议价格';
+    }
+}
 
 
 
@@ -491,7 +461,7 @@ async function sendMessage() {
         messages: [
             {
                 role: "system",
-                content: "你是一个大语言模型机器人"
+                content: "你是一个当当网书籍商品发布助手，同时对书籍有很多了解"
             },
             {
                 role: "user",
@@ -574,6 +544,20 @@ document.getElementById('chatInput').addEventListener('keypress', function(e) {
         sendMessage();
     }
 });
+
+
+
+// 添加自动发送AI消息的函数
+async function sendAIMessageForTitle(title) {
+    const message = `我想在当当网发布一个书籍商品，这个书籍商品的标题为"${title}"，对于这个标题和书本应该有的内容以及商品的发布，你能给我什么建议吗？`;
+    
+    // 自动填充输入框
+    const chatInput = document.getElementById('chatInput');
+    chatInput.value = message;
+    
+    // 触发发送消息
+    await sendMessage();
+}
     </script>
 </body>
 
