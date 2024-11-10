@@ -6,9 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>当当网图书商品分析面板</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -44,8 +41,12 @@
 
         <div class="charts-container">
             <div class="chart-box chart-img" id="chart2"></div>
-            <div class="chart-box"><div id="chart1" style="height:330px ;width: auto;"></div></div> <!-- 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图-->
-            <div class="chart-box"><div id="chart3" style="height:300px ;width: auto;"></div></div>
+            <div class="chart-box">
+                <div id="chart1" style="height:330px ;width: auto;"></div>
+            </div> <!-- 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图-->
+            <div class="chart-box">
+                <div id="chart3" style="height:300px ;width: auto;"></div>
+            </div>
         </div>
 
         <div class="bottom-container">
@@ -66,97 +67,97 @@
                     </div>
                     <div id="predictionResult"></div>
                 </div>
-            </div>            
+            </div>
         </div>
     </div>
 
     <script>
 
-// 创建价格分布散点图
-function createPriceScatterChart(data) {
-    const chart3 = echarts.init(document.getElementById('chart3'));
-    
-    // 处理数据
-    const scatterData = data.map((item, index) => {
-        return {
-            value: [index + 1, parsePrice(item.price)],
-            name: item.name,
-            itemStyle: {
-                color: '#4e7eff'  // 设置点的颜色
-            }
-        };
-    });
+        // 创建价格分布散点图
+        function createPriceScatterChart(data) {
+            const chart3 = echarts.init(document.getElementById('chart3'));
 
-    const option = {
-        title: {
-            text: '商品价格分布散点图',
-            left: 'center'
-        },
-        tooltip: {
-            trigger: 'item',
-            formatter: function(params) {
-                return `商品：${params.data.name}<br/>价格：¥${params.data.value[1].toFixed(2)}`;
-            }
-        },
-        grid: {
-            left: '5%',
-            right: '5%',
-            bottom: '10%',
-            containLabel: true
-        },
-        xAxis: {
-            type: 'value',
-            name: '商品序号',
-            nameLocation: 'middle',
-            nameGap: 30,
-            min: 0,
-            max: data.length + 1,
-            splitLine: {
-                show: true,
-                lineStyle: {
-                    type: 'dashed'
-                }
-            }
-        },
-        yAxis: {
-            type: 'value',
-            name: '价格 (¥)',
-            min: 0,
-            max: 300,
-            splitLine: {
-                show: true,
-                lineStyle: {
-                    type: 'dashed'
-                }
-            }
-        },
-        series: [{
-            type: 'scatter',
-            data: scatterData,
-            symbolSize: 10,
-            emphasis: {
-                itemStyle: {
-                    color: '#ff7e00',  // 鼠标悬停时的颜色
-                    borderColor: '#fff',
-                    borderWidth: 2,
-                    shadowBlur: 10,
-                    shadowColor: 'rgba(0, 0, 0, 0.3)'
-                }
-            }
-        }]
-    };
+            // 处理数据
+            const scatterData = data.map((item, index) => {
+                return {
+                    value: [index + 1, parsePrice(item.price)],
+                    name: item.name,
+                    itemStyle: {
+                        color: '#4e7eff'  // 设置点的颜色
+                    }
+                };
+            });
 
-    chart3.setOption(option);
+            const option = {
+                title: {
+                    text: '商品价格分布散点图',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function (params) {
+                        return `商品：${params.data.name}<br/>价格：¥${params.data.value[1].toFixed(2)}`;
+                    }
+                },
+                grid: {
+                    left: '5%',
+                    right: '5%',
+                    bottom: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'value',
+                    name: '商品序号',
+                    nameLocation: 'middle',
+                    nameGap: 30,
+                    min: 0,
+                    max: data.length + 1,
+                    splitLine: {
+                        show: true,
+                        lineStyle: {
+                            type: 'dashed'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '价格 (¥)',
+                    min: 0,
+                    max: 300,
+                    splitLine: {
+                        show: true,
+                        lineStyle: {
+                            type: 'dashed'
+                        }
+                    }
+                },
+                series: [{
+                    type: 'scatter',
+                    data: scatterData,
+                    symbolSize: 10,
+                    emphasis: {
+                        itemStyle: {
+                            color: '#ff7e00',  // 鼠标悬停时的颜色
+                            borderColor: '#fff',
+                            borderWidth: 2,
+                            shadowBlur: 10,
+                            shadowColor: 'rgba(0, 0, 0, 0.3)'
+                        }
+                    }
+                }]
+            };
 
-    // 添加响应式调整
-    window.addEventListener('resize', () => {
-        chart3.resize();
-    });
-}
+            chart3.setOption(option);
+
+            // 添加响应式调整
+            window.addEventListener('resize', () => {
+                chart3.resize();
+            });
+        }
 
 
 
-            //柱状图
+        //柱状图
         function createPriceRangeChart(data) {
             // 获取所有价格
             const prices = data.map(item => parsePrice(item.price));
@@ -353,53 +354,112 @@ function createPriceScatterChart(data) {
 
 
         //价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 
+        // 价格预测模块的JavaScript代码
         async function predictPrice() {
-    const titleInput = document.getElementById('titleInput');
-    const predictButton = document.getElementById('predictButton');
-    const resultDiv = document.getElementById('predictionResult');
-    
-    const title = titleInput.value.trim();
-    if (!title) {
-        alert('请输入商品标题');
-        return;
-    }
-    
-    // 禁用按钮，显示加载状态
-    predictButton.disabled = true;
-    predictButton.textContent = '预测中...';
-    
-    try {
-        // 这里替换为你的实际API端点
-        const response = await fetch('/api/predict', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ title })
-        });
-        
-        const data = await response.json();
-        
-        // 显示预测结果
-        resultDiv.style.display = 'block';
-        resultDiv.innerHTML = `
-            <div class="prediction-item">
-                <div class="prediction-label">建议价格</div>
-                <div class="prediction-value">¥${data.price.toFixed(2)}</div>
-            </div>
-            <div class="prediction-item">
-                <div class="prediction-label">价格范围</div>
-                <div class="prediction-value">¥${data.range.min.toFixed(2)} - ¥${data.range.max.toFixed(2)}</div>
+            const titleInput = document.getElementById('titleInput');
+            const predictionResult = document.getElementById('predictionResult');
+            const predictButton = document.getElementById('predictButton');
+
+            // 获取输入的标题
+            const title = titleInput.value.trim();
+
+            // 输入验证
+            if (!title) {
+                predictionResult.innerHTML = '<div class="error-message">请输入商品标题</div>';
+                return;
+            }
+
+            try {
+                // 禁用按钮，显示加载状态
+                predictButton.disabled = true;
+                predictButton.textContent = '预测中...';
+                predictionResult.innerHTML = '<div class="loading">正在分析中...</div>';
+
+                // 调用后端API
+                const response = await fetch('http://localhost:8010/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ title: title })
+                });
+
+                if (!response.ok) {
+                    throw new Error('预测请求失败');
+                }
+
+                const data = await response.json();
+
+                // 构建结果HTML
+                let resultHTML = '<div class="prediction-results">';
+
+                // 主要预测结果
+                resultHTML += `
+            <div class="price-prediction">
+                <div class="predicted-price">
+                    <span class="label">预测价格：</span>
+                    <span class="price">¥${data.predicted_price.toFixed(2)}</span>
+                </div>
+                <div class="price-range">
+                    <span class="label">价格区间：</span>
+                    <span class="range">¥${data.price_range.lower.toFixed(2)} - ¥${data.price_range.upper.toFixed(2)}</span>
+                </div>
             </div>
         `;
-    } catch (error) {
-        alert('预测失败，请稍后重试');
-    } finally {
-        // 恢复按钮状态
-        predictButton.disabled = false;
-        predictButton.textContent = '建议价格';
-    }
-}
+
+                // 特征分析结果
+                if (data.features.special_attributes && Object.keys(data.features.special_attributes).length > 0) {
+                    resultHTML += '<div class="features-analysis">';
+                    resultHTML += '<div class="special-attributes">';
+                    resultHTML += '<span class="label">检测到的特殊属性：</span>';
+                    resultHTML += '<div class="attributes-list">';
+                    for (const [attr, value] of Object.entries(data.features.special_attributes)) {
+                        if (value === 1) {
+                            resultHTML += `<span class="attribute-tag">${attr}</span>`;
+                        }
+                    }
+                    resultHTML += '</div></div>';
+
+                    // 文本指标
+                    const metrics = data.features.text_metrics;
+                    resultHTML += `
+                <div class="text-metrics">
+                    <div class="metric">
+                        <span class="metric-label">字符数：</span>
+                        <span class="metric-value">${metrics.char_count}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">词数：</span>
+                        <span class="metric-value">${metrics.word_count}</span>
+                    </div>
+                </div>
+            `;
+                    resultHTML += '</div>';
+                }
+
+                resultHTML += '</div>';
+                predictionResult.innerHTML = resultHTML;
+
+            } catch (error) {
+                predictionResult.innerHTML = `
+            <div class="error-message">
+                预测失败：${error.message}
+            </div>
+        `;
+            } finally {
+                // 恢复按钮状态
+                predictButton.disabled = false;
+                predictButton.textContent = '建议价格';
+            }
+        }
+
+        // 添加回车键触发预测
+        document.getElementById('titleInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                predictPrice();
+            }
+        });
+
     </script>
 </body>
 

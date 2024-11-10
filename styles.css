@@ -132,56 +132,127 @@ body {
 
 
 
-
-/* 预测部分 预测部分 预测部分 预测部分 预测部分 预测部分  */
-.prediction-content {
+/* 价格预测模块的CSS样式 */
+.prediction-module {
+    background: #fff;
+    border-radius: 8px;
     padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.prediction-content {
+    margin-top: 15px;
 }
 
 .input-group {
     display: flex;
     gap: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
 }
 
 .input-group input {
-    flex-grow: 1;
-    padding: 8px;
+    flex: 1;
+    padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 4px;
+    font-size: 14px;
 }
 
 .input-group button {
     padding: 8px 16px;
-    background-color: #1890ff;
+    background: #4CAF50;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    transition: background 0.3s;
 }
 
 .input-group button:hover {
-    background-color: #40a9ff;
+    background: #45a049;
 }
 
-#predictionResult {
+.input-group button:disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+}
+
+/* 预测结果样式 */
+.prediction-results {
+    background: #f8f9fa;
+    border-radius: 6px;
     padding: 15px;
-    border-radius: 8px;
-    background-color: #f0f5ff;
-    display: none;
+    margin-top: 10px;
 }
 
-.prediction-item {
+.price-prediction {
+    margin-bottom: 15px;
+}
+
+.predicted-price {
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+.predicted-price .price {
+    color: #e53935;
+    font-weight: bold;
+}
+
+.price-range {
+    color: #666;
+    font-size: 14px;
+}
+
+.features-analysis {
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+    margin-top: 15px;
+}
+
+.special-attributes {
     margin-bottom: 10px;
 }
 
-.prediction-label {
-    font-size: 14px;
-    color: #666;
+.attributes-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 5px;
 }
 
-.prediction-value {
-    font-size: 18px;
-    font-weight: bold;
-    color: #1890ff;
+.attribute-tag {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.text-metrics {
+    display: flex;
+    gap: 20px;
+    color: #666;
+    font-size: 13px;
+}
+
+.metric {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.error-message {
+    color: #d32f2f;
+    padding: 10px;
+    background: #ffebee;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.loading {
+    color: #666;
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
 }
