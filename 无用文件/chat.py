@@ -22,7 +22,7 @@ payload = {
         }  
     ],  
     "stream": False,  
-    "model": "gpt-3.5-turbo",  # 穷人家的孩子只能使用3.5
+    "model": "gpt-3.5-turbo",
     "temperature": 0.5,  
     "presence_penalty": 0,  
     "frequency_penalty": 0,  

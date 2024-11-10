@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当当网图书商品分析面板</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>当当网图书商品分析面板</h1>
+        </div>
+
+        <div class="basic-info" id="basicInfo">
+            <!-- 基本信息 -->
+            <div class="info-card">
+                <h3>总商品数</h3>
+                <div class="value" id="totalProducts">-</div>
+            </div>
+            <div class="info-card">
+                <h3>最高价格</h3>
+                <div class="value" id="maxPrice">-</div>
+            </div>
+            <div class="info-card">
+                <h3>最低价格</h3>
+                <div class="value" id="minPrice">-</div>
+            </div>
+            <div class="info-card">
+                <h3>中位数价格</h3>
+                <div class="value" id="medianPrice">-</div>
+            </div>
+            <div class="info-card">
+                <h3>平均价格</h3>
+                <div class="value" id="avgPrice">-</div>
+            </div>
+        </div>
+
+        <div class="charts-container">
+            <div class="chart-box chart-img" id="chart2"></div>
+            <div class="chart-box">
+                <div id="chart1" style="height:330px ;width: auto;"></div>
+            </div> <!-- 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图 分布图-->
+            <div class="chart-box">
+                <div id="chart3" style="height:300px ;width: auto;"></div>
+            </div>
+        </div>
+
+        <div class="bottom-container">
+            <div class="chat-module">
+                <h2>AI 助手</h2>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="输入你的问题...">
+                    <button onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+            <div class="prediction-module">
+                <h2>价格预测</h2>
+                <div class="prediction-content">
+                    <div class="input-group">
+                        <input type="text" id="titleInput" placeholder="请输入商品标题...">
+                        <button onclick="predictPrice()" id="predictButton">建议价格</button>
+                    </div>
+                    <div id="predictionResult"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        //价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 价格预测模块 
+        // 价格预测模块的JavaScript代码
+        async function predictPrice() {
+            const titleInput = document.getElementById('titleInput');
+            const predictionResult = document.getElementById('predictionResult');
+            const predictButton = document.getElementById('predictButton');
+
+            // 获取输入的标题
+            const title = titleInput.value.trim();
+
+            // 输入验证
+            if (!title) {
+                predictionResult.innerHTML = '<div class="error-message">请输入商品标题</div>';
+                return;
+            }
+
+            try {
+                // 禁用按钮，显示加载状态
+                predictButton.disabled = true;
+                predictButton.textContent = '预测中...';
+                predictionResult.innerHTML = '<div class="loading">正在分析中...</div>';
+
+                // 调用后端API
+                const response = await fetch('http://localhost:8010/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ title: title })
+                });
+
+                if (!response.ok) {
+                    throw new Error('预测请求失败');
+                }
+
+                const data = await response.json();
+
+                // 构建结果HTML
+                let resultHTML = '<div class="prediction-results">';
+
+                // 主要预测结果
+                resultHTML += `
+            <div class="price-prediction">
+                <div class="predicted-price">
+                    <span class="label">预测价格：</span>
+                    <span class="price">¥${data.predicted_price.toFixed(2)}</span>
+                </div>
+                <div class="price-range">
+                    <span class="label">价格区间：</span>
+                    <span class="range">¥${data.price_range.lower.toFixed(2)} - ¥${data.price_range.upper.toFixed(2)}</span>
+                </div>
+            </div>
+        `;
+
+                // 特征分析结果
+                if (data.features.special_attributes && Object.keys(data.features.special_attributes).length > 0) {
+                    resultHTML += '<div class="features-analysis">';
+                    resultHTML += '<div class="special-attributes">';
+                    resultHTML += '<span class="label">检测到的特殊属性：</span>';
+                    resultHTML += '<div class="attributes-list">';
+                    for (const [attr, value] of Object.entries(data.features.special_attributes)) {
+                        if (value === 1) {
+                            resultHTML += `<span class="attribute-tag">${attr}</span>`;
+                        }
+                    }
+                    resultHTML += '</div></div>';
+
+                    // 文本指标
+                    const metrics = data.features.text_metrics;
+                    resultHTML += `
+                <div class="text-metrics">
+                    <div class="metric">
+                        <span class="metric-label">字符数：</span>
+                        <span class="metric-value">${metrics.char_count}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">词数：</span>
+                        <span class="metric-value">${metrics.word_count}</span>
+                    </div>
+                </div>
+            `;
+                    resultHTML += '</div>';
+                }
+
+                resultHTML += '</div>';
+                predictionResult.innerHTML = resultHTML;
+
+            } catch (error) {
+                predictionResult.innerHTML = `
+            <div class="error-message">
+                预测失败：${error.message}
+            </div>
+        `;
+            } finally {
+                // 恢复按钮状态
+                predictButton.disabled = false;
+                predictButton.textContent = '建议价格';
+            }
+        }
+
+        // 添加回车键触发预测
+        document.getElementById('titleInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                predictPrice();
+            }
+        });
+
+
+
+
+
+
+
+
+        //ai助手模块 ai助手模块 ai助手模块 ai助手模块 ai助手模块 ai助手模块 ai助手模块 ai助手模块 ai助手模块 ai助手模块 ai助手模块 ai助手模块 
+// AI聊天功能实现
+async function sendMessage() {
+    const chatInput = document.getElementById('chatInput');
+    const sendButton = document.querySelector('.chat-input button');
+    const chatMessages = document.getElementById('chatMessages');
+    const userMessage = chatInput.value.trim();
+    
+    if (!userMessage) return;
+
+    // 禁用输入和按钮
+    chatInput.disabled = true;
+    sendButton.disabled = true;
+    sendButton.textContent = '发送中...';
+    
+    // 显示用户消息
+    appendMessage('user', userMessage);
+    chatInput.value = '';
+
+    // 准备请求数据
+    const payload = {
+        messages: [
+            {
+                role: "system",
+                content: "你是一个当当网书籍商品发布助手，同时对书籍有很多了解"
+            },
+            {
+                role: "user",
+                content: userMessage
+            }
+        ],
+        stream: false,
+        model: "gpt-3.5-turbo",
+        temperature: 0.5,
+        presence_penalty: 0,
+        frequency_penalty: 0,
+        top_p: 1
+    };
+
+    try {
+        // 显示加载状态
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'message assistant-message';
+        loadingDiv.textContent = '正在思考...';
+        chatMessages.appendChild(loadingDiv);
+
+        // 发送请求到API
+        const response = await fetch('https://xiaoai.plus/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer sk-dbhV140jGebFvQbT2B2KxfnEzZdrzQRmaYoxzMgVcErTXACh'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        
+        // 移除加载状态
+        chatMessages.removeChild(loadingDiv);
+
+        // 显示AI响应
+        if (data.choices && data.choices[0] && data.choices[0].message) {
+            appendMessage('assistant', data.choices[0].message.content);
+        } else {
+            appendMessage('assistant', '抱歉，我现在无法回答。');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        appendMessage('assistant', '发生错误，请稍后重试。');
+    } finally {
+        // 恢复输入和按钮状态
+        chatInput.disabled = false;
+        sendButton.disabled = false;
+        sendButton.textContent = '发送';
+        chatInput.focus(); // 重新获取输入框焦点
+    }
+}
+
+// 添加消息到聊天界面
+function appendMessage(role, content) {
+    const chatMessages = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}-message`;
+    
+    // 添加角色标签
+    const roleLabel = document.createElement('div');
+    roleLabel.className = 'role-label';
+    roleLabel.textContent = role === 'user' ? '你' : 'AI助手';
+    messageDiv.appendChild(roleLabel);
+    
+    // 添加消息内容
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'content';
+    contentDiv.textContent = content;
+    messageDiv.appendChild(contentDiv);
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// 添加回车键发送功能
+document.getElementById('chatInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !e.target.disabled) {
+        sendMessage();
+    }
+});
+
+
+// 添加自动发送AI消息的函数
+async function sendAIMessageForTitle(title) {
+    const message = `我想在当当网发布一个书籍商品，这个书籍商品的标题为"${title}"，对于这个标题和书本应该有的内容以及商品的发布，你能给我什么建议吗？`;
+    
+    // 自动填充输入框
+    const chatInput = document.getElementById('chatInput');
+    chatInput.value = message;
+    
+    // 触发发送消息
+    await sendMessage();
+}
+    </script>
+</body>
+
+</html>
